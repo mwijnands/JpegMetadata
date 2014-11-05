@@ -9,7 +9,7 @@ Read and write basic JPEG (Exif) metadata.
 The `JpegMetadata` package is available at [NuGet](https://www.nuget.org/packages/XperiCode.JpegMetadata). To install `JpegMetadata`, run the following command in the [Package Manager Console](http://docs.nuget.org/docs/start-here/using-the-package-manager-console):
 
 > ### Install-Package XperiCode.JpegMetadata
-> 
+
 ## Usage
 
 	var adapter = new JpegMetadataAdapter(@"d:\test.jpg");
