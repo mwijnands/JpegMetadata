@@ -9,9 +9,11 @@ namespace XperiCode.JpegMetadata.SampleConsole
         {
             var adapter = new JpegMetadataAdapter(@"d:\test.jpg");
 
-            adapter.Metadata.Title = "Profile";
-            adapter.Metadata.Rating = 3;
-            adapter.Metadata.Comments += string.Format("{0}[{1:dd-MM-yyyy HH:mm:ss}] Added new comment.", Environment.NewLine, DateTime.Now);
+	        adapter.Metadata.Title = "Beach";
+	        adapter.Metadata.Subject = "Summer holiday 2014";
+	        adapter.Metadata.Rating = 4;
+	        adapter.Metadata.Keywords.Add("beach");
+	        adapter.Metadata.Comments = "This is a comment.";
 
             bool saved = adapter.Save();
 

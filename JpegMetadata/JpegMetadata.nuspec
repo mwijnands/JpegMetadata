@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>$id$</id>
+    <title>JpegMetadata</title>
+    <version>$version$</version>
+    <authors>Marcel Wijnands</authors>
+    <projectUrl>https://github.com/mwijnands/JpegMetadata</projectUrl>
+    <licenseUrl>http://opensource.org/licenses/MIT</licenseUrl>
+    <description>$description$</description>
+    <copyright>$copyright$</copyright>
+    <tags>exif jpeg jpg metadata</tags>
+  </metadata>
+</package>

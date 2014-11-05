@@ -5,7 +5,7 @@ using System.Web;
 using System.Web.Security;
 using System.Web.SessionState;
 
-namespace JpegMetadata.SampleWeb
+namespace XperiCode.JpegMetadata.SampleWeb
 {
     public class Global : System.Web.HttpApplication
     {

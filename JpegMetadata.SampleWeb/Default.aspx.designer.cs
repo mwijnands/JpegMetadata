@@ -6,11 +6,8 @@
 //     the code is regenerated.
 // </auto-generated>
 //------------------------------------------------------------------------------
-
-namespace JpegMetadata.SampleWeb
+namespace XperiCode.JpegMetadata.SampleWeb
 {
-
-
     public partial class Default
     {
 
