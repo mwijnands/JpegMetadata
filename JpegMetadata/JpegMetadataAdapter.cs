@@ -16,26 +16,26 @@ namespace XperiCode.JpegMetadata
         {
             get
             {
-                return this._metadata;
+                return _metadata;
             }
         }
 
         public JpegMetadataAdapter(string filePath)
         {
-            this._filePath = filePath;
-            this._metadata = this.ReadMetadata(filePath);
+            _filePath = filePath;
+            _metadata = ReadMetadata(filePath);
         }
 
         public bool Save()
         {
             try
             {
-                if (TrySave())
+                if (TrySave(_filePath, _metadata))
                 {
                     return true;
                 }
 
-                return TryPadAndSave();
+                return TryPadAndSave(_filePath, _metadata);
             }
             catch
             {
@@ -47,35 +47,28 @@ namespace XperiCode.JpegMetadata
         {
             using (var jpegStream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
             {
-                var decoder = BitmapDecoder.Create(jpegStream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.Default);
+                var decoder = BitmapDecoder.Create(jpegStream, BitmapCreateOptions.None, BitmapCacheOption.Default);
                 if (!decoder.CodecInfo.FileExtensions.Contains("jpg"))
                 {
                     throw new ArgumentException("File is not a JPEG.");
                 }
 
                 var jpegFrame = decoder.Frames[0];
-                var metaData = (BitmapMetadata)jpegFrame.Metadata;
+                var metadata = (BitmapMetadata)jpegFrame.Metadata;
 
-                return new JpegMetadata
-                {
-                    Title = metaData.Title ?? string.Empty,
-                    Subject = metaData.Subject ?? string.Empty,
-                    Rating = metaData.Rating,
-                    Keywords = metaData.Keywords == null ? new List<string>() : new List<string>(metaData.Keywords),
-                    Comments = metaData.Comment ?? string.Empty
-                };
+                return CreateMetadata(metadata);
             }
         }
 
-        private bool TrySave()
+        private bool TrySave(string filePath, JpegMetadata metadata)
         {
-            using (var jpegStream = new FileStream(_filePath, FileMode.Open, FileAccess.ReadWrite))
+            using (var jpegStream = new FileStream(filePath, FileMode.Open, FileAccess.ReadWrite))
             {
                 var decoder = new JpegBitmapDecoder(jpegStream, BitmapCreateOptions.None, BitmapCacheOption.Default);
                 var jpegFrame = decoder.Frames[0];
                 var metadataWriter = jpegFrame.CreateInPlaceBitmapMetadataWriter();
 
-                SetMetadata(metadataWriter);
+                SetMetadata(metadataWriter, metadata);
 
                 if (metadataWriter.TrySave())
                 {
@@ -86,39 +79,35 @@ namespace XperiCode.JpegMetadata
             return false;
         }
 
-        private bool TryPadAndSave()
+        private bool TryPadAndSave(string filePath, JpegMetadata metadata)
         {
-            var start = new ParameterizedThreadStart(PadAndSave);
-            var myThread = new Thread(start);
-            var result = new JpegMetadataSaveResult();
+            var result = new JpegMetadataSaveResult(filePath, metadata);
+            var thread = new Thread(() => PadAndSave(result));
 
-            myThread.SetApartmentState(ApartmentState.STA);
-            myThread.Start(result);
-
-            while (myThread.IsAlive)
-            {
-            }
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+            thread.Join();
 
             return result.IsSuccess;
         }
 
-        private void PadAndSave(object result)
+        private void PadAndSave(JpegMetadataSaveResult result)
         {
             try
             {
                 string tempFileName = Path.GetTempFileName();
 
-                using (var jpegStream = new FileStream(this._filePath, FileMode.Open, FileAccess.Read))
+                using (var jpegStream = new FileStream(result.FilePath, FileMode.Open, FileAccess.Read))
                 {
-                    var decoder = new JpegBitmapDecoder(jpegStream, BitmapCreateOptions.PreservePixelFormat | BitmapCreateOptions.IgnoreColorProfile, BitmapCacheOption.None);
+                    var decoder = new JpegBitmapDecoder(jpegStream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.None);
 
                     var jpegFrame = decoder.Frames[0];
-                    if (jpegFrame == null || jpegFrame.Metadata == null)
+                    if (jpegFrame == null)
                     {
                         return;
                     }
 
-                    var encoder = CreateJpegBitmapEncoderWithMetadata(jpegFrame);
+                    var encoder = CreateJpegBitmapEncoderWithMetadata(jpegFrame, result.Metadata);
 
                     using (var tempFileStream = File.Open(tempFileName, FileMode.Create, FileAccess.ReadWrite))
                     {
@@ -126,7 +115,7 @@ namespace XperiCode.JpegMetadata
                     }
                 }
 
-                File.Copy(tempFileName, _filePath, true);
+                File.Copy(tempFileName, result.FilePath, true);
 
                 try
                 {
@@ -137,25 +126,30 @@ namespace XperiCode.JpegMetadata
                     // Not a problem if temporary file can't be deleted.
                 }
 
-                ((JpegMetadataSaveResult)result).IsSuccess = true;
+                result.IsSuccess = true;
             }
-            catch
+            catch (Exception)
             {
                 // Ignore exception on this thread and don't set IsSuccess property.
             }
         }
 
-        private JpegBitmapEncoder CreateJpegBitmapEncoderWithMetadata(BitmapFrame jpegFrame)
+        private JpegBitmapEncoder CreateJpegBitmapEncoderWithMetadata(BitmapFrame jpegFrame, JpegMetadata metadata)
         {
+            var frameMetadata = (BitmapMetadata)jpegFrame.Metadata;
+            if (frameMetadata == null)
+            {
+                frameMetadata = new BitmapMetadata("jpeg");
+            }
 
-            var metadataCopy = (BitmapMetadata)jpegFrame.Metadata.Clone();
+            var metadataCopy = frameMetadata.Clone();
             uint padding = (uint)4096;
 
             metadataCopy.SetQuery("/app1/ifd/PaddingSchema:Padding", padding);
             metadataCopy.SetQuery("/app1/ifd/exif/PaddingSchema:Padding", padding);
             metadataCopy.SetQuery("/xmp/PaddingSchema:Padding", padding);
 
-            SetMetadata(metadataCopy);
+            SetMetadata(metadataCopy, metadata);
 
             var newJpegFrame = BitmapFrame.Create(jpegFrame, jpegFrame.Thumbnail, metadataCopy, jpegFrame.ColorContexts);
 
@@ -165,13 +159,25 @@ namespace XperiCode.JpegMetadata
             return encoder;
         }
 
-        private void SetMetadata(BitmapMetadata metadata)
+        private JpegMetadata CreateMetadata(BitmapMetadata metadata)
         {
-            metadata.Title = this.Metadata.Title;
-            metadata.Subject = this.Metadata.Subject;
-            metadata.Rating = this.Metadata.Rating;
-            metadata.Keywords = new ReadOnlyCollection<string>(this.Metadata.Keywords);
-            metadata.Comment = this.Metadata.Comments;
+            return new JpegMetadata
+            {
+                Title = metadata.Title ?? string.Empty,
+                Subject = metadata.Subject ?? string.Empty,
+                Rating = metadata.Rating,
+                Keywords = metadata.Keywords == null ? new List<string>() : new List<string>(metadata.Keywords),
+                Comments = metadata.Comment ?? string.Empty
+            };
+        }
+
+        private void SetMetadata(BitmapMetadata destination, JpegMetadata source)
+        {
+            destination.Title = source.Title;
+            destination.Subject = source.Subject;
+            destination.Rating = source.Rating;
+            destination.Keywords = new ReadOnlyCollection<string>(source.Keywords);
+            destination.Comment = source.Comments;
         }
     }
 }
