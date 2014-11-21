@@ -1,1 +1,1 @@
-nuget pack ../JpegMetadata/JpegMetadata.csproj -Build -Prop Configuration=Release
+nuget pack ../JpegMetadata/JpegMetadata.csproj -Symbols -Build -Prop Configuration=Release
